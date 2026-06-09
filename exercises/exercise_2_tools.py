@@ -26,8 +26,19 @@ LEGAL_KNOWLEDGE = [
             "(4) cover damages. Statute of limitations is typically 4 years (UCC § 2-725)."
         ),
     },
-    # TODO: Thêm entry về luật lao động Việt Nam
-    # Gợi ý: id="labor_law", keywords=["lao động", "sa thải", ...], text="..."
+    # Thêm entry về luật lao động Việt Nam
+    {
+        "id": "labor_law",
+        "keywords": ["lao động", "sa thải", "hợp đồng lao động", "nghỉ việc", "trợ cấp"],
+        "text": (
+            "Theo Bộ luật Lao động 2019 (Việt Nam): người sử dụng lao động chỉ được "
+            "đơn phương chấm dứt hợp đồng lao động trong các trường hợp luật định và phải "
+            "báo trước (ít nhất 30 ngày với HĐ xác định thời hạn, 45 ngày với HĐ không xác "
+            "định thời hạn). Sa thải trái pháp luật phải nhận lại người lao động và bồi "
+            "thường ít nhất 2 tháng tiền lương. Người lao động làm việc thường xuyên từ đủ "
+            "12 tháng trở lên được trợ cấp thôi việc nửa tháng lương cho mỗi năm làm việc."
+        ),
+    },
 ]
 
 
@@ -41,21 +52,33 @@ def search_legal_knowledge(query: str) -> str:
     return "Không tìm thấy thông tin liên quan."
 
 
-# TODO: Tạo tool check_statute_of_limitations
-# Gợi ý: nhận case_type (str), trả về thời hiệu khởi kiện
-# @tool
-# def check_statute_of_limitations(case_type: str) -> str:
-#     """Kiểm tra thời hiệu khởi kiện."""
-#     # YOUR CODE HERE
-#     pass
+# Tool check_statute_of_limitations
+@tool
+def check_statute_of_limitations(case_type: str) -> str:
+    """Kiểm tra thời hiệu khởi kiện theo loại vụ việc (case_type)."""
+    limitations = {
+        "contract": "Hợp đồng (UCC § 2-725): thời hiệu khởi kiện là 4 năm kể từ khi vi phạm.",
+        "hợp đồng": "Tranh chấp hợp đồng dân sự (BLDS Việt Nam): thời hiệu khởi kiện là 3 năm.",
+        "tort": "Bồi thường thiệt hại ngoài hợp đồng: thời hiệu khởi kiện thường là 3 năm.",
+        "lao động": "Tranh chấp lao động cá nhân: thời hiệu yêu cầu Tòa án giải quyết là 1 năm.",
+        "thừa kế": "Tranh chấp về thừa kế: thời hiệu là 30 năm với bất động sản, 10 năm với động sản.",
+    }
+    key = case_type.lower().strip()
+    for k, v in limitations.items():
+        if k in key:
+            return v
+    return (
+        f"Không có dữ liệu thời hiệu cụ thể cho loại vụ việc '{case_type}'. "
+        "Thời hiệu khởi kiện mặc định cho tranh chấp dân sự thường là 3 năm."
+    )
 
 
 async def main():
     load_dotenv()
     llm = get_llm()
     
-    # TODO: Thêm tool mới vào danh sách
-    tools = [search_legal_knowledge]  # Thêm check_statute_of_limitations vào đây
+    # Thêm tool mới vào danh sách
+    tools = [search_legal_knowledge, check_statute_of_limitations]
     llm_with_tools = llm.bind_tools(tools)
     
     question = "Thời hiệu khởi kiện vụ vi phạm hợp đồng là bao lâu?"
@@ -79,7 +102,8 @@ async def main():
             
             if tool_call["name"] == "search_legal_knowledge":
                 tool_result = search_legal_knowledge.invoke(tool_call["args"])
-            # TODO: Thêm xử lý cho check_statute_of_limitations
+            elif tool_call["name"] == "check_statute_of_limitations":
+                tool_result = check_statute_of_limitations.invoke(tool_call["args"])
             
             if tool_result:
                 messages.append(ToolMessage(content=tool_result, tool_call_id=tool_call["id"]))

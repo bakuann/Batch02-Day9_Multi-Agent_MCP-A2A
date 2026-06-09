@@ -1,0 +1,14 @@
+# Render.com — deploy 1 click bằng Docker. Đẩy repo lên GitHub rồi "New > Blueprint".
+services:
+  - type: web
+    name: rag-druglaw
+    runtime: docker
+    plan: free
+    healthCheckPath: /
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false   # nhập trong dashboard (Secret)
+      - key: JINA_API_KEY
+        sync: false
+      - key: PAGEINDEX_API_KEY
+        sync: false

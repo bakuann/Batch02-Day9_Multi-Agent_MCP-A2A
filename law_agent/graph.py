@@ -11,11 +11,12 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from typing import Annotated, TypedDict
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.constants import Send
-from langgraph.graph import END, StateGraph
+from langgraph.graph import END, START, StateGraph
 
 from common.llm import get_llm
 
@@ -208,8 +209,65 @@ async def aggregate(state: LawState) -> dict:
 # Graph construction
 # ---------------------------------------------------------------------------
 
+def route_from_start(state: LawState) -> list[Send]:
+    """OPTIMIZED routing: keyword-based, dispatched ngay từ START.
+
+    Khác bản gốc ở 2 điểm giúp giảm latency:
+      1. KHÔNG dùng một LLM call riêng để routing (check_routing) — thay bằng
+         heuristic keyword, gần như tốn 0 giây.
+      2. analyze_law được fan-out SONG SONG cùng tax/compliance (thay vì chạy
+         tuần tự trước), vì các specialist chỉ cần `question`, không cần law_analysis.
+    """
+    q = state["question"].lower()
+    sends: list[Send] = [Send("analyze_law", state)]  # luôn phân tích pháp lý
+
+    depth = state.get("delegation_depth", 0)
+    if depth < MAX_DELEGATION_DEPTH:
+        if any(kw in q for kw in [
+            "tax", "irs", "evasion", "evade", "fbar", "fatca", "duty", "duties",
+            "avoid tax", "avoids tax", "thuế",
+        ]):
+            sends.append(Send("call_tax", state))
+        if any(kw in q for kw in [
+            "compliance", "sec", "sox", "fcpa", "aml", "regulat", "gdpr",
+            "privacy", "antitrust", "sanction", "tuân thủ",
+        ]):
+            sends.append(Send("call_compliance", state))
+    return sends
+
+
+def _create_optimized_graph():
+    """Topology tối ưu: START -> [analyze_law || call_tax || call_compliance] -> aggregate -> END."""
+    graph = StateGraph(LawState)
+
+    graph.add_node("analyze_law", analyze_law)
+    graph.add_node("call_tax", call_tax)
+    graph.add_node("call_compliance", call_compliance)
+    graph.add_node("aggregate", aggregate)
+
+    # Fan-out song song ngay từ START (không có node check_routing dùng LLM)
+    graph.add_conditional_edges(
+        START,
+        route_from_start,
+        ["analyze_law", "call_tax", "call_compliance"],
+    )
+    graph.add_edge("analyze_law", "aggregate")
+    graph.add_edge("call_tax", "aggregate")
+    graph.add_edge("call_compliance", "aggregate")
+    graph.add_edge("aggregate", END)
+
+    return graph.compile()
+
+
 def create_graph():
-    """Build and compile the Law Agent StateGraph."""
+    """Build and compile the Law Agent StateGraph.
+
+    Đặt env LAW_OPTIMIZED=1 để dùng topology tối ưu (song song, bỏ LLM routing).
+    """
+    if os.getenv("LAW_OPTIMIZED") == "1":
+        logger.info("Using OPTIMIZED law graph (parallel fan-out, keyword routing)")
+        return _create_optimized_graph()
+
     graph = StateGraph(LawState)
 
     graph.add_node("analyze_law", analyze_law)

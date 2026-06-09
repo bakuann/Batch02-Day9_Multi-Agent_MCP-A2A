@@ -70,21 +70,48 @@ Nếu lỗi:
 
 ---
 
-## Bài Tập Nâng Cao (Optional)
+## Bài Tập Nâng Cao (Optional) — ĐÃ HOÀN THÀNH ✅
 
-Sau khi hoàn thành 2 bài tập chính, bạn có thể thử:
+Tất cả challenge đã được implement thành file chạy được:
 
-### Challenge 1: Financial Agent
-Thêm `financial_agent` vào multi-agent system để phân tích thiệt hại tài chính.
+### Challenge 1: Financial Agent — `challenge_1_financial_agent.py`
+Thêm `financial_agent` (phân tích thiệt hại tài chính) vào multi-agent system,
+chạy SONG SONG cùng tax / compliance / privacy qua `Send` API.
+```bash
+uv run python exercises/challenge_1_financial_agent.py
+```
 
-### Challenge 2: Conversation Memory
-Implement memory để agent nhớ các câu hỏi trước đó.
+### Challenge 2: Conversation Memory — `challenge_2_memory.py`
+Dùng `MemorySaver` + `thread_id` để agent NHỚ các lượt hỏi trước (multi-turn,
+trả lời được câu follow-up). Có kiểm chứng thread mới = không có ký ức.
+```bash
+uv run python exercises/challenge_2_memory.py
+```
 
-### Challenge 3: Custom Tool
-Tạo tool gọi API thực (ví dụ: tra cứu luật từ database online).
+### Challenge 3: Custom Tool gọi API thật — `challenge_3_custom_tool.py`
+Tool `lookup_legal_term` gọi **Wikipedia REST API** (online, không cần key) để
+tra cứu thuật ngữ pháp lý; LLM tự quyết định gọi tool.
+```bash
+uv run python exercises/challenge_3_custom_tool.py
+```
 
-### Challenge 4: Error Handling
-Thêm try-catch và retry logic khi tool fails.
+### Challenge 4: Error Handling — `challenge_4_error_handling.py`
+Decorator `with_retry` (exponential backoff) + fallback + try/except ngoài cùng,
+minh hoạ bằng tool flaky (lỗi 2 lần rồi thành công) và tool luôn lỗi.
+```bash
+uv run python exercises/challenge_4_error_handling.py
+```
+
+> ⚙️ Lưu ý Windows: chạy với UTF-8 để in tiếng Việt:
+> `$env:PYTHONIOENCODING="utf-8"; $env:PYTHONUTF8="1"` trước khi `uv run ...`
+
+---
+
+## Bài Tập Cộng Điểm (Stage 5 Latency) — ĐÃ HOÀN THÀNH ✅
+
+Xem báo cáo đầy đủ tại **[../BONUS.md](../BONUS.md)**: đo latency baseline (~54.6s),
+đề xuất tối ưu (bỏ LLM routing + fan-out song song trong Law Agent) và demo giảm
+còn ~43s (≈ -21%). Công cụ: `test_client_timed.py`, `start_all.ps1`, `stop_all.ps1`.
 
 ---
 

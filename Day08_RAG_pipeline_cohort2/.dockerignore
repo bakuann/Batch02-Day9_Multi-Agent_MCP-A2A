@@ -1,0 +1,15 @@
+.venv/
+.git/
+**/__pycache__/
+*.pyc
+.pytest_cache/
+tests/
+notebooks/
+group_project/
+data/landing/legal/
+data/raw/
+*.doc
+*.docx
+*.png
+image.png
+uv.lock

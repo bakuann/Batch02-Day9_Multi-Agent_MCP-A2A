@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Demo Tương Tác Multi-Agent — Stage 5 (A2A)</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --panel2:#1c2230; --line:#30363d;
+    --txt:#e6edf3; --muted:#8b949e; --accent:#58a6ff; --accent2:#a371f7;
+    --ok:#3fb950; --warn:#d29922; --tax:#f0883e; --comp:#a371f7; --law:#58a6ff;
+    --cust:#3fb950; --reg:#8b949e;
+    --mono:'SF Mono',ui-monospace,'Cascadia Code',Consolas,monospace;
+    --sans:'Segoe UI',system-ui,-apple-system,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1200px 600px at 70% -10%,#16203a 0,var(--bg) 55%);
+    color:var(--txt);font-family:var(--sans);line-height:1.5;padding:24px;}
+  h1{font-size:22px;margin:0 0 2px}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:18px}
+  .sub code{font-family:var(--mono);color:var(--accent)}
+  .wrap{display:grid;grid-template-columns:1.35fr .9fr;gap:18px;max-width:1180px;margin:0 auto}
+  @media(max-width:920px){.wrap{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px}
+  .card h2{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 14px}
+
+  /* ---- Diagram ---- */
+  .stage{position:relative;height:430px}
+  svg.edges{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+  .node{position:absolute;width:150px;padding:10px 12px;border-radius:12px;background:var(--panel2);
+    border:1px solid var(--line);transition:.35s;transform:translate(-50%,-50%);box-shadow:0 2px 8px rgba(0,0,0,.3)}
+  .node .role{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+  .node .name{font-weight:700;font-size:14px;margin:2px 0}
+  .node .port{font-family:var(--mono);font-size:11px;color:var(--muted)}
+  .node .dot{position:absolute;top:10px;right:10px;width:8px;height:8px;border-radius:50%;background:#3a4150}
+  .node.active{border-color:var(--c);box-shadow:0 0 0 1px var(--c),0 0 26px -4px var(--c);transform:translate(-50%,-50%) scale(1.06)}
+  .node.active .dot{background:var(--c);box-shadow:0 0 10px var(--c);animation:pulse 1s infinite}
+  .node.done{border-color:#2d4a36}
+  .node.done .dot{background:var(--ok)}
+  @keyframes pulse{50%{opacity:.35}}
+  .node[data-k=registry]{--c:var(--reg)} .node[data-k=customer]{--c:var(--cust)}
+  .node[data-k=law]{--c:var(--law)} .node[data-k=tax]{--c:var(--tax)} .node[data-k=compliance]{--c:var(--comp)}
+
+  .pkt{position:absolute;width:13px;height:13px;border-radius:50%;background:var(--accent);
+    box-shadow:0 0 12px var(--accent);transform:translate(-50%,-50%);opacity:0;z-index:5}
+
+  /* ---- Controls ---- */
+  .controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+  button{background:var(--accent);color:#0b1020;border:0;padding:9px 16px;border-radius:9px;
+    font-weight:700;cursor:pointer;font-size:13px}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  button.ghost{background:transparent;color:var(--txt);border:1px solid var(--line)}
+  .qbox{font-family:var(--mono);font-size:12px;color:var(--muted);background:var(--panel2);
+    border:1px solid var(--line);border-radius:9px;padding:8px 10px;flex:1;min-width:200px}
+
+  /* ---- Log ---- */
+  .log{font-family:var(--mono);font-size:12px;height:250px;overflow:auto;background:#0b0f16;
+    border:1px solid var(--line);border-radius:10px;padding:10px}
+  .log .ln{padding:3px 0;border-bottom:1px dashed #1b2230;opacity:0;animation:fade .3s forwards}
+  @keyframes fade{to{opacity:1}}
+  .log .t{color:var(--muted)} .log .a{font-weight:700}
+  .a.customer{color:var(--cust)} .a.law{color:var(--law)} .a.tax{color:var(--tax)}
+  .a.compliance{color:var(--comp)} .a.registry{color:var(--reg)} .a.user{color:#e6edf3}
+  .badge{display:inline-block;font-family:var(--mono);font-size:10px;padding:1px 6px;border-radius:6px;
+    border:1px solid var(--line);color:var(--muted);margin-left:6px}
+
+  .meta{display:flex;gap:18px;flex-wrap:wrap;font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:10px}
+  .meta b{color:var(--accent);font-weight:600}
+
+  /* ---- Answer + latency ---- */
+  .answer{white-space:pre-wrap;font-size:13px;max-height:230px;overflow:auto;background:#0b0f16;
+    border:1px solid var(--line);border-radius:10px;padding:12px;color:#cdd9e5}
+  .answer.empty{color:var(--muted)}
+  .bars{margin-top:6px}
+  .bar{display:flex;align-items:center;gap:10px;margin:8px 0;font-size:12px}
+  .bar .lbl{width:90px;color:var(--muted)}
+  .bar .track{flex:1;background:#0b0f16;border:1px solid var(--line);border-radius:6px;height:22px;overflow:hidden}
+  .bar .fill{height:100%;border-radius:6px 0 0 6px;display:flex;align-items:center;justify-content:flex-end;
+    padding-right:8px;color:#0b1020;font-weight:700;font-size:11px;width:0;transition:width 1.2s ease}
+  .bar.base .fill{background:var(--warn)} .bar.opt .fill{background:var(--ok)}
+  .foot{color:var(--muted);font-size:11px;margin-top:14px;text-align:center}
+</style>
+</head>
+<body>
+  <h1>🤖 Demo Tương Tác Multi-Agent — Stage 5 (A2A Protocol)</h1>
+  <div class="sub">
+    Mô phỏng lại <b>một request thật</b> đi qua hệ phân tán (replay theo log &amp; trace_id thật).
+    trace_id <code>09bac94c…</code> · context_id <code>4d2295fa…</code>
+  </div>
+
+  <div class="wrap">
+    <!-- LEFT: diagram + controls -->
+    <div class="card">
+      <h2>Sơ đồ hệ thống &amp; luồng request</h2>
+      <div class="controls">
+        <button id="run">▶ Chạy demo</button>
+        <button id="reset" class="ghost">↺ Reset</button>
+        <div class="qbox" id="q">"If a company breaks a contract and avoids taxes, what are the legal and regulatory consequences?"</div>
+      </div>
+      <div class="stage" id="stage">
+        <svg class="edges" id="edges"></svg>
+        <!-- nodes positioned by % -->
+        <div class="node" data-k="registry" style="left:50%;top:13%"><span class="dot"></span>
+          <div class="role">Service Discovery</div><div class="name">Registry</div><div class="port">:10000</div></div>
+        <div class="node" data-k="customer" style="left:50%;top:40%"><span class="dot"></span>
+          <div class="role">Entry · ReAct</div><div class="name">Customer Agent</div><div class="port">:10100 · depth 0</div></div>
+        <div class="node" data-k="law" style="left:50%;top:64%"><span class="dot"></span>
+          <div class="role">Orchestrator · StateGraph</div><div class="name">Law Agent</div><div class="port">:10101 · depth 1</div></div>
+        <div class="node" data-k="tax" style="left:23%;top:88%"><span class="dot"></span>
+          <div class="role">Specialist · ReAct</div><div class="name">Tax Agent</div><div class="port">:10102 · depth 2</div></div>
+        <div class="node" data-k="compliance" style="left:77%;top:88%"><span class="dot"></span>
+          <div class="role">Specialist · ReAct</div><div class="name">Compliance Agent</div><div class="port">:10103 · depth 2</div></div>
+      </div>
+      <div class="meta">
+        <span>Hops A2A: <b>3</b></span><span>Depth tối đa: <b>2</b></span>
+        <span>Song song: <b>Tax ∥ Compliance</b></span><span>Response: <b>~9,266 ký tự</b></span>
+      </div>
+    </div>
+
+    <!-- RIGHT: log + answer + latency -->
+    <div class="card">
+      <h2>Nhật ký tương tác (live)</h2>
+      <div class="log" id="log"></div>
+
+      <h2 style="margin-top:18px">Kết quả tổng hợp</h2>
+      <div class="answer empty" id="answer">— Bấm "Chạy demo" để xem hệ thống phối hợp —</div>
+
+      <h2 style="margin-top:18px">So sánh latency (bonus #2)</h2>
+      <div class="bars">
+        <div class="bar base"><span class="lbl">Baseline</span><div class="track"><div class="fill" data-w="100">54.6s</div></div></div>
+        <div class="bar opt"><span class="lbl">Optimized</span><div class="track"><div class="fill" data-w="79">43.1s</div></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">Self-contained · không cần server · dữ liệu replay từ log Stage 5 thật · Day 9 — Multi-Agent / MCP / A2A</div>
+
+<script>
+// ---- node positions (percent of stage) for edge drawing & packet animation ----
+const POS = {
+  registry:[50,13], customer:[50,40], law:[50,64], tax:[23,88], compliance:[77,88]
+};
+const stage = document.getElementById('stage');
+const edgesSvg = document.getElementById('edges');
+const logEl = document.getElementById('log');
+const answerEl = document.getElementById('answer');
+
+function px(p){const r=stage.getBoundingClientRect();return [p[0]/100*r.width, p[1]/100*r.height];}
+
+// draw static edges
+const EDGES = [
+  ['customer','registry','discover'], ['customer','law','A2A'],
+  ['law','registry','discover'], ['law','tax','A2A'], ['law','compliance','A2A']
+];
+function drawEdges(){
+  edgesSvg.innerHTML='';
+  for(const [a,b] of EDGES){
+    const [x1,y1]=px(POS[a]), [x2,y2]=px(POS[b]);
+    const l=document.createElementNS('http://www.w3.org/2000/svg','line');
+    l.setAttribute('x1',x1);l.setAttribute('y1',y1);l.setAttribute('x2',x2);l.setAttribute('y2',y2);
+    l.setAttribute('stroke','#283041');l.setAttribute('stroke-width','1.5');
+    l.setAttribute('stroke-dasharray','4 4');
+    edgesSvg.appendChild(l);
+  }
+}
+drawEdges(); window.addEventListener('resize',drawEdges);
+
+// ---- the real captured timeline (relative seconds from request start) ----
+const SCRIPT = [
+  {t:'00.0', a:'user',     k:null,         msg:'Gửi câu hỏi pháp lý tới Customer Agent'},
+  {t:'00.5', a:'customer', k:'customer',   msg:'ReAct: LLM nhận định đây là câu hỏi pháp lý → quyết định delegate', act:'customer'},
+  {t:'04.4', a:'customer', k:'customer',   msg:'discover("legal_question") → Registry', flow:['customer','registry']},
+  {t:'04.5', a:'registry', k:'registry',   msg:'Trả endpoint Law Agent → http://localhost:10101', act:'registry', flow:['registry','customer']},
+  {t:'05.1', a:'customer', k:'customer',   msg:'A2A delegate → Law Agent (kèm trace_id, context_id, depth=1)', flow:['customer','law']},
+  {t:'05.5', a:'law',      k:'law',        msg:'LawAgent executing · depth=1', act:'law', done:'customer'},
+  {t:'07.4', a:'law',      k:'law',        msg:'[node analyze_law] LLM phân tích hợp đồng / trách nhiệm dân sự'},
+  {t:'21.0', a:'law',      k:'law',        msg:'[node check_routing] LLM quyết định: needs_tax=✓ needs_compliance=✓'},
+  {t:'21.3', a:'law',      k:'law',        msg:'discover + A2A delegate → Tax & Compliance (SONG SONG, depth=2)', flow:['law','tax']},
+  {t:'21.3', a:'law',      k:'law',        msg:'fan-out Send API', flow:['law','compliance']},
+  {t:'21.4', a:'tax',      k:'tax',        msg:'TaxAgent executing · depth=2 · ReAct + search_tax_law', act:'tax'},
+  {t:'21.4', a:'compliance',k:'compliance',msg:'ComplianceAgent executing · depth=2 · ReAct + search_compliance_law', act:'compliance'},
+  {t:'33.0', a:'tax',      k:'tax',        msg:'Trả tax_result → Law Agent', flow:['tax','law'], done:'tax'},
+  {t:'34.0', a:'compliance',k:'compliance',msg:'Trả compliance_result → Law Agent', flow:['compliance','law'], done:'compliance'},
+  {t:'37.0', a:'law',      k:'law',        msg:'[node aggregate] gộp law + tax + compliance → final_answer'},
+  {t:'52.0', a:'law',      k:'law',        msg:'Trả final_answer → Customer Agent', flow:['law','customer'], done:'law'},
+  {t:'54.6', a:'customer', k:'customer',   msg:'Trình bày kết quả cho người dùng ✓', act:'customer', final:true, done:'law'},
+];
+
+const ANSWER = `## Comprehensive Legal and Regulatory Consequences
+
+### I. Breach of Contract
+• Expectation / consequential / cover damages; specific performance.
+• Statute of limitations ~4 years (UCC § 2-725).
+
+### II. Tax Avoidance vs. Evasion  (Tax Agent)
+• Evasion (26 U.S.C. § 7201): felony, up to $250K + 5 yrs.
+• Civil fraud penalty 75% of underpayment (IRC § 6663); FBAR/FATCA exposure.
+
+### III. Regulatory Compliance  (Compliance Agent)
+• SEC/SOX disclosure & certification liability; FCPA books-and-records.
+• Reputational + class-action risk.
+
+⚖️  Đây là phân tích mang tính giáo dục — hãy tham vấn luật sư có giấy phép.`;
+
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
+let running=false;
+
+function setNode(k,cls){const n=document.querySelector(`.node[data-k="${k}"]`);if(n)n.classList.add(cls);}
+function clearNodes(){document.querySelectorAll('.node').forEach(n=>n.classList.remove('active','done'));}
+
+async function flyPacket(from,to){
+  const p=document.createElement('div');p.className='pkt';stage.appendChild(p);
+  const [x1,y1]=px(POS[from]),[x2,y2]=px(POS[to]);
+  const steps=24;
+  for(let i=0;i<=steps;i++){
+    const r=i/steps;
+    p.style.left=(x1+(x2-x1)*r)+'px';p.style.top=(y1+(y2-y1)*r)+'px';
+    p.style.opacity = r<0.1?r*10 : r>0.9?(1-r)*10 : 1;
+    await sleep(11);
+  }
+  p.remove();
+}
+
+function addLog(s){
+  const div=document.createElement('div');div.className='ln';
+  const who = s.a==='user'?'USER':s.a.toUpperCase();
+  div.innerHTML=`<span class="t">t+${s.t}s</span> <span class="a ${s.a}">${who}</span>`+
+    (s.k?`<span class="badge">${s.k}</span>`:'')+`<br>&nbsp;&nbsp;${s.msg}`;
+  logEl.appendChild(div);logEl.scrollTop=logEl.scrollHeight;
+}
+
+async function run(){
+  if(running)return;running=true;
+  document.getElementById('run').disabled=true;
+  reset(true);
+  for(const s of SCRIPT){
+    if(s.act){clearNodesActiveOnly();setNode(s.act,'active');}
+    addLog(s);
+    if(s.flow) await flyPacket(s.flow[0],s.flow[1]);
+    else await sleep(520);
+    if(s.done) setNode(s.done,'done');
+    if(s.final){
+      answerEl.classList.remove('empty');answerEl.textContent=ANSWER;
+      document.querySelectorAll('.fill').forEach(f=>f.style.width=f.dataset.w+'%');
+    }
+  }
+  document.querySelectorAll('.node').forEach(n=>{n.classList.remove('active');n.classList.add('done');});
+  document.getElementById('run').disabled=false;running=false;
+}
+function clearNodesActiveOnly(){document.querySelectorAll('.node.active').forEach(n=>n.classList.remove('active'));}
+
+function reset(keepRunning){
+  if(running&&!keepRunning)return;
+  logEl.innerHTML='';clearNodes();
+  answerEl.classList.add('empty');answerEl.textContent='— Bấm "Chạy demo" để xem hệ thống phối hợp —';
+  document.querySelectorAll('.fill').forEach(f=>f.style.width='0');
+  document.querySelectorAll('.pkt').forEach(p=>p.remove());
+}
+
+document.getElementById('run').onclick=run;
+document.getElementById('reset').onclick=()=>{if(!running)reset();};
+</script>
+</body>
+</html>

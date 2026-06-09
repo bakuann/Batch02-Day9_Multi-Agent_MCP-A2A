@@ -1,0 +1,10 @@
+# Runtime deps cho web demo (server.py) — slim, KHÔNG torch/transformers.
+# Đủ cho: retrieval (semantic API + BM25 + RRF + rerank API) + generation + UI.
+fastapi>=0.110.0
+uvicorn>=0.29.0
+openai>=1.30.0
+python-dotenv>=1.0.0
+numpy>=1.26.0
+rank-bm25>=0.2.2
+requests>=2.31.0
+pageindex>=0.1.0
